@@ -56,13 +56,13 @@ public class NetworkRig : NetworkBehaviour
 
             // 머리와 손의 위치/회전 맞추기
             head.position = hardwareRig.head.position;
-            head.rotation = hardwareRig.head.rotation;
+            //head.rotation = hardwareRig.head.rotation;
 
             leftHand.position = hardwareRig.leftHand.position;
-            leftHand.rotation = hardwareRig.leftHand.rotation;
+            //leftHand.rotation = hardwareRig.leftHand.rotation;
 
             rightHand.position = hardwareRig.rightHand.position;
-            rightHand.rotation = hardwareRig.rightHand.rotation;
+            //rightHand.rotation = hardwareRig.rightHand.rotation;
         }
     }
 }
