@@ -47,6 +47,7 @@ public class NetworkManager : MonoBehaviour, INetworkRunnerCallbacks
             // 새로 접속한 'player'가 누구든 상관없이 그 플레이어를 위해 아바타를 스폰합니다.
             // 'player' 변수에는 방금 접속한 플레이어의 정보가 담겨있습니다.
             runner.Spawn(_playerPrefab, Vector3.up, Quaternion.identity, player);
+
         }
     }
 
