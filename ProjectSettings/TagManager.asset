@@ -35,8 +35,8 @@ TagManager:
   - 
   - 
   - 
-  - 
-  - 
+  - LocalPlayerRig
+  - PlayerAvatarLayer
   m_SortingLayers:
   - name: Default
     uniqueID: 0

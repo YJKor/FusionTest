@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 3127728406573987373}
   - component: {fileID: 3127728406573987372}
   - component: {fileID: 3127728406573987374}
-  m_Layer: 0
+  m_Layer: 30
   m_Name: EventSystem
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -105,7 +105,7 @@ GameObject:
   m_Component:
   - component: {fileID: 3127728407087826081}
   - component: {fileID: 3127728407087826080}
-  m_Layer: 0
+  m_Layer: 30
   m_Name: XR Interaction Manager
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -151,7 +151,7 @@ GameObject:
   m_Component:
   - component: {fileID: 3127728408163665758}
   - component: {fileID: 3127728408163665757}
-  m_Layer: 0
+  m_Layer: 30
   m_Name: Input Action Manager
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -196,7 +196,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4134505312059479865}
-  m_Layer: 0
+  m_Layer: 30
   m_Name: XR Interaction Setup
   m_TagString: Untagged
   m_Icon: {fileID: 0}

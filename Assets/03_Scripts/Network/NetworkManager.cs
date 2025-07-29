@@ -1,60 +1,125 @@
-using UnityEngine;
 using Fusion;
 using Fusion.Sockets;
-
 using System;
-using System.Collections;
-using System.Collections.Generic; 
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class NetworkManager : MonoBehaviour, INetworkRunnerCallbacks
 {
-    // 인스펙터에서 NetworkRunner 프리팹을 연결해줍니다.
-    [SerializeField]
-    private NetworkRunner _runnerPrefab;
+    // --- 싱글톤 인스턴스 ---
+    public static NetworkManager Instance { get; private set; }
 
+    // --- 인스펙터에서 설정 ---
+    [Tooltip("스폰할 플레이어의 프리팹")]
+    [SerializeField] private NetworkPrefabRef _playerPrefab;
 
-    [SerializeField]
-    private NetworkPrefabRef _playerPrefab;
-
+    // --- 내부 변수 ---
     private NetworkRunner _runner;
+    private Dictionary<PlayerRef, NetworkObject> _spawnedCharacters = new Dictionary<PlayerRef, NetworkObject>();
 
-    IEnumerator Start()
+    private void Awake()
     {
-        // 씬이 로드된 후 아주 잠깐 (0.1초) 기다립니다.
-        // 이 짧은 시간이 시스템이 안정화될 시간을 줍니다.
-        yield return new WaitForSeconds(0.1f);
-
-        _runner = Instantiate(_runnerPrefab);
-        _runner.AddCallbacks(this);
-
-        // 비동기 작업인 StartGame을 호출하고 끝날 때까지 기다리지 않습니다.
-        // 코루틴 내에서는 await를 직접 사용할 수 없기 때문입니다.
-        _ = _runner.StartGame(new StartGameArgs()
+        // 싱글톤 패턴 설정
+        if (Instance == null)
         {
-            GameMode = GameMode.AutoHostOrClient,
-            SessionName = "TestVRRoom"
-        });
-    }
-    // 플레이어가 룸에 접속했을 때 자동으로 호출되는 콜백 함수
-    public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
-    {
-        Debug.Log($"Player {player} has joined.");
-        // 접속한 플레이어가 '나' 자신이라면
-        if (runner.IsServer)
+            Instance = this;
+        }
+        else
         {
-            Debug.Log($"OnPlayerJoined on Server. Spawning avatar for player {player}.");
-
-            // 새로 접속한 'player'가 누구든 상관없이 그 플레이어를 위해 아바타를 스폰합니다.
-            // 'player' 변수에는 방금 접속한 플레이어의 정보가 담겨있습니다.
-            runner.Spawn(_playerPrefab, Vector3.up, Quaternion.identity, player);
-
+            Destroy(gameObject);
         }
     }
 
-    
-    #region Unused INetworkRunnerCallbacks Methods
-    public void OnPlayerLeft(NetworkRunner runner, PlayerRef player) { }
-    
+    /// <summary>
+    /// 호스트로 게임을 시작하는 UI 버튼 등에서 호출합니다.
+    /// </summary>
+    public void StartHost()
+    {
+        StartGame(GameMode.Host);
+    }
+
+    /// <summary>
+    /// 클라이언트로 게임에 참여하는 UI 버튼 등에서 호출합니다.
+    /// </summary>
+    public void StartClient()
+    {
+        StartGame(GameMode.Client);
+    }
+
+    /// <summary>
+    /// Fusion 세션을 시작하는 핵심 로직입니다.
+    /// </summary>
+    private async void StartGame(GameMode mode)
+    {
+        _runner = gameObject.AddComponent<NetworkRunner>();
+        _runner.ProvideInput = true;
+        _runner.AddCallbacks(this);
+
+        gameObject.AddComponent<NetworkSceneManagerDefault>();
+
+        await _runner.StartGame(new StartGameArgs()
+        {
+            GameMode = mode,
+            SessionName = "TestVRRoom",
+            // SceneRef.FromIndex를 사용하여 씬을 지정합니다.
+            Scene = SceneRef.FromIndex(SceneManager.GetActiveScene().buildIndex),
+            SceneManager = gameObject.GetComponent<NetworkSceneManagerDefault>()
+        });
+    }
+    // --- INetworkRunnerCallbacks 구현 ---
+
+    /// <summary>
+    /// 새로운 플레이어가 세션에 참여했을 때 서버/호스트에서 호출됩니다.
+    /// </summary>
+    public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
+    {
+        // 서버/호스트만 플레이어를 스폰할 권한을 가집니다.
+        if (runner.IsServer)
+        {
+            Debug.Log($"플레이어 {player} 참가, 아바타를 스폰합니다.");
+
+            // 플레이어 프리팹을 스폰하고, 해당 플레이어에게 상태 권한(State Authority)을 부여합니다.
+            NetworkObject networkPlayerObject = runner.Spawn(_playerPrefab, Vector3.zero, Quaternion.identity, player);
+
+            // 스폰된 캐릭터를 딕셔너리에 저장하여 추적합니다.
+            _spawnedCharacters.Add(player, networkPlayerObject);
+        }
+    }
+
+    /// <summary>
+    /// 플레이어가 세션을 떠났을 때 서버/호스트에서 호출됩니다.
+    /// </summary>
+    public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
+    {
+        // 서버/호스트만 플레이어를 디스폰할 수 있습니다.
+        if (runner.IsServer)
+        {
+            // 떠난 플레이어의 캐릭터를 찾아 디스폰합니다.
+            if (_spawnedCharacters.TryGetValue(player, out NetworkObject networkObject))
+            {
+                runner.Despawn(networkObject);
+                _spawnedCharacters.Remove(player);
+                Debug.Log($"플레이어 {player} 퇴장, 아바타를 디스폰합니다.");
+            }
+        }
+    }
+
+    // --- 아래는 필수지만 이 예제에서는 사용하지 않는 콜백들입니다. ---
+
+    public void OnInput(NetworkRunner runner, NetworkInput input)
+    {
+        // 이 예제에서는 AvatarHardwareRig가 입력을 처리하므로 비워둡니다.
+        // 만약 이동 입력을 여기서 처리하고 싶다면, 아래와 같이 작성할 수 있습니다.
+        var data = new AvatarHardwareRig.NetworkInputData();
+
+        // 예시: 키보드 입력 받기 (VR에서는 XR 입력으로 대체)
+        // data.joystickInput.x = Input.GetAxis("Horizontal");
+        // data.joystickInput.y = Input.GetAxis("Vertical");
+
+        // input.Set(data);
+    }
+
     public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
     public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason) { }
     public void OnConnectedToServer(NetworkRunner runner) { }
@@ -69,56 +134,23 @@ public class NetworkManager : MonoBehaviour, INetworkRunnerCallbacks
     public void OnSceneLoadDone(NetworkRunner runner) { }
     public void OnSceneLoadStart(NetworkRunner runner) { }
 
-    void INetworkRunnerCallbacks.OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player)
+    public void OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player)
     {
     }
 
-    void INetworkRunnerCallbacks.OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player)
+    public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player)
     {
     }
 
-    void INetworkRunnerCallbacks.OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
+    public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
     {
     }
 
-    void INetworkRunnerCallbacks.OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason)
+    public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, ArraySegment<byte> data)
     {
     }
 
-    void INetworkRunnerCallbacks.OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, ArraySegment<byte> data)
+    public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress)
     {
     }
-
-    void INetworkRunnerCallbacks.OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress)
-    {
-    }
-
-    void INetworkRunnerCallbacks.OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList)
-    {
-    }
-
-    void INetworkRunnerCallbacks.OnCustomAuthenticationResponse(NetworkRunner runner, Dictionary<string, object> data)
-    {
-    }
-
-    
-
-    
-
-    public void OnInput(NetworkRunner runner, NetworkInput input)
-    {
-        var myInput = new PlayerNetworkInput();
-
-        // 매 프레임 키보드 입력을 새로 읽어옵니다.
-        myInput.Movement.x = Input.GetAxis("Horizontal");
-        myInput.Movement.y = Input.GetAxis("Vertical");
-
-        // 읽어온 입력 값을 Fusion에 전달
-        input.Set(myInput);
-    }
-
-   
-
-    #endregion
-
 }
